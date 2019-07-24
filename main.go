@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	chat "google.golang.org/api/chat/v1"
 )
 
@@ -15,6 +15,7 @@ func GetWeapons(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var event chat.DeprecatedEvent
+
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -31,12 +32,14 @@ func GetWeapons(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func cool(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
+func cool(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"text": "hello",
+	})
 }
 
 func main() {
-	http.HandleFunc("/", GetWeapons)
-
-	http.ListenAndServe(":8080", nil)
+	r := gin.Default()
+	r.POST("/", cool)
+	r.Run()
 }
