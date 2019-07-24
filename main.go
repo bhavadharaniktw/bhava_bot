@@ -11,7 +11,7 @@ import (
 
 func GetWeapons(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprint(w, "not allowed")
 		return
 	}
 	var event chat.DeprecatedEvent
