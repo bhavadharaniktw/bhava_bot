@@ -1,22 +1,34 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
-	"log"
 	"net/http"
+
+	chat "google.golang.org/api/chat/v1"
 )
 
 func GetWeapons(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Fatalln(err)
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
 	}
-	log.Println(string(body))
-	fmt.Fprintf(w, "Hello, bhava")
+	var event chat.DeprecatedEvent
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	switch event.Type {
+	case "ADDED_TO_SPACE":
+		if event.Space.Type != "ROOM" {
+			break
+		}
+		fmt.Fprint(w, `{"text":"thanks for adding me."}`)
+	case "MESSAGE":
+		fmt.Fprintf(w, `{"text":"you said %s"}`, event.Message.Text)
+	}
 }
 
 func cool(w http.ResponseWriter, r *http.Request) {
