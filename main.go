@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -19,7 +22,7 @@ import (
 	chat "google.golang.org/api/chat/v1"
 )
 
-const token = `eyJhbGciOiJSUzI1NiIsImtpZCI6ImFlZjQ4ZjAyODNkNTc2YjhkZTg0NDMyMTcyNDhlOTMxOTRjODNjOTQiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiI3NDcwNjEzNjY3MiIsImV4cCI6MTU2NDAzOTk2MywiaWF0IjoxNTY0MDM2MzYzLCJpc3MiOiJjaGF0QHN5c3RlbS5nc2VydmljZWFjY291bnQuY29tIn0.OZEGaAM0nday9W-DDLl9WZUQPZfFnu3qbZShJIBBgvnXwR_uhsnbRy7ycR38iBnzkMfVsQk0Xye5Yg-rZ2eNoXJnvUj5tAwC043D2lEZvS7MTUUkSTY3RvahY9HxS4dmXu1qGim4nhDINwjAk_yyi2yCiKwjKdnw1Oe2KNYTLXJZnVVAS17aYF_vxSaSs81PNKsroPvfTCeCuyffBITWidrtpI3pvwGO31_No_nBFCOfDDuNB9y_uZG8cCAD3SBinzUPtLoIEC8QbYhZLN58oynkvMlCTsVNyJhdtR5qKGUmO2Y0DxduSm1o8qJ5mQxR_BiiNCScoeEgMskz63UsRQ`
+const token = `eyJhbGciOiJSUzI1NiIsImtpZCI6ImMxZWY3YTYwZmMxYzgyZmEyZjY3ZDMzNTlmZTc0OWZkMmMzMmJjMzciLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiI3NDcwNjEzNjY3MiIsImV4cCI6MTU2NDM4MTc1OCwiaWF0IjoxNTY0Mzc4MTU4LCJpc3MiOiJjaGF0QHN5c3RlbS5nc2VydmljZWFjY291bnQuY29tIn0.JZqLmNWtshdv9siiPaRfcKd_9-59Cir1B8kAldeIhOUBkcH711Mib6VutrUd6xWubdm-2F6wV2z_CvqQzBL5Qq99_tqy6OWEWdh2cbEr3SwZVt4rmn9p5ZFlYanGaHaixI4KduP7cgBrPOqdtNDuYFRPB7DhosUFsgieVNtDqQ08w2Pw3BENR92rm1WJSG5dVVC78SW-NiKz3OafNJ-IiObtCnCp_IofKl02rdN5jc6r6pLACgnA_kk0Bjp6wwKPax0ceFEihu1090-T-5Q4iM9mISWH2dJu_4jrezLX8OBPQl0gFyiItDjPk80zd8uHNRD51WPy2IKsGNz15oIvcg`
 
 const jwksURL = `https://www.googleapis.com/service_accounts/v1/metadata/x509/chat@system.gserviceaccount.com`
 
@@ -131,6 +134,32 @@ func cool(c *gin.Context) {
 type Foo struct {
 }
 
+func ParseRSAPublicKeyFromPEM(key []byte) (*rsa.PublicKey, error) {
+	var err error
+
+	// Parse PEM block
+	var block *pem.Block
+	if block, _ = pem.Decode(key); block == nil {
+		return nil, nil
+	}
+
+	// Parse the key
+	var parsedKey interface{}
+	if parsedKey, err = x509.ParsePKIXPublicKey(block.Bytes); err != nil {
+		if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
+			parsedKey = cert.PublicKey
+		} else {
+			return nil, err
+		}
+	}
+
+	var pkey *rsa.PublicKey
+	var ok bool
+	if pkey, ok = parsedKey.(*rsa.PublicKey); !ok {
+		return nil, err
+	}
+	return pkey, nil
+}
 func main() {
 	// token, err := jwt.Parse(token, getKey)
 	// if err != nil {
@@ -140,32 +169,34 @@ func main() {
 	// for key, value := range claims {
 	// 	fmt.Printf("%s\t%v\n", key, value)
 	// }
-
 	fmt.Println(string(requestJson()))
-	tk, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		keyID, ok := t.Header["kid"].(string)
-		if !ok {
-			return nil, errors.New("expecting JWT header to have string kid")
-		}
-		//fmt.Println(keyID)
-		data := map[string]interface{}{}
-		dec := json.NewDecoder(strings.NewReader(string(requestJson())))
-		dec.Decode(&data)
-		jq := jsonq.NewQuery(data)
-		cert, err := jq.String(keyID)
-		fmt.Println(err)
-		return []byte(cert), nil
-	})
-	fmt.Println(tk.Valid)
+	tk, err := jwt.Parse(token, keyFunc)
+	fmt.Println(tk)
 	if tk.Valid {
-		fmt.Println("Valid")
+		fmt.Println(" The token is Valid")
 	} else {
 		fmt.Print(err)
 	}
-	// fmt.Println(tok)
-	// fmt.Println(err)
+
 	// r := gin.New()
 	// r.Use(RequestLogger())
 	// r.POST("/", cool_init, cool)
 	// r.Run()
+}
+
+func keyFunc(t *jwt.Token) (interface{}, error) {
+	
+	keyID, ok := t.Header["kid"].(string)
+	if !ok {
+		return nil, errors.New("expecting JWT header to have string kid")
+	}
+	//fmt.Println(keyID)
+	data := map[string]interface{}{}
+	dec := json.NewDecoder(strings.NewReader(string(requestJson())))
+	dec.Decode(&data)
+	jq := jsonq.NewQuery(data)
+	cert, _ := jq.String(keyID)
+	fmt.Println(cert)
+	return ParseRSAPublicKeyFromPEM([]byte(cert))
+	//return []byte(cert), nil
 }
