@@ -21,7 +21,9 @@ import (
 
 	dialogflow "cloud.google.com/go/dialogflow/apiv2"
 	// "github.com/apex/gateway"
-	"github.com/apex/gateway"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/jsonq"
@@ -206,7 +208,19 @@ func dummyHandler(c *gin.Context) {
 	})
 }
 
-func Handler() *gin.Engine {
+var initialized = false
+var ginLambda *ginadapter.GinLambda
+
+func Handler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	if !initialized {
+		ginEngine := getRouterEngine()
+		ginLambda = ginadapter.New(ginEngine)
+		initialized = true
+	}
+	return ginLambda.Proxy(req)
+}
+
+func getRouterEngine() *gin.Engine {
 	gin.SetMode(gin.DebugMode)
 	r := gin.New()
 	r.Use(requestLogger())
@@ -216,6 +230,6 @@ func Handler() *gin.Engine {
 }
 
 func main() {
-	log.Fatal(gateway.ListenAndServe(":8080", Handler()))
-	// lambda.Start(Handler)
+	//log.Fatal(gateway.ListenAndServe(":8080", Handler()))
+	lambda.Start(Handler)
 }
