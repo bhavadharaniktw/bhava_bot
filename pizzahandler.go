@@ -22,12 +22,12 @@ import (
 	dialogflow "cloud.google.com/go/dialogflow/apiv2"
 	// "github.com/apex/gateway"
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/jsonq"
-	chat "google.golang.org/api/chat/v1"
+	"google.golang.org/api/chat/v1"
+	"google.golang.org/api/option"
 	dialogflowpb "google.golang.org/genproto/googleapis/cloud/dialogflow/v2"
 )
 
@@ -51,6 +51,8 @@ func randomStringGenerator(n int) string {
 
 func getCertificateJSONFromURL() []byte {
 	resp, err := http.Get(jwksURL)
+	fmt.Println("================= certificate error ===========")
+	fmt.Println(err)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -58,6 +60,8 @@ func getCertificateJSONFromURL() []byte {
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
+	fmt.Println("================certificate resp body error ===========")
+	fmt.Println(err)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -81,7 +85,8 @@ func authorizeHangoutsClient(c *gin.Context) {
 		cert, _ := jq.String(keyID)
 		return parseRSAPublicKeyFromPEM([]byte(cert))
 	})
-
+	fmt.Println("================= authorization error ===========")
+	fmt.Println(err)
 	if tk.Valid && err == nil {
 		c.Next()
 	} else {
@@ -113,6 +118,8 @@ func readBody(reader io.Reader) string {
 func dialogflowRequestHandler(c *gin.Context) {
 	var json chat.DeprecatedEvent
 	if err := c.ShouldBindJSON(&json); err != nil {
+		fmt.Println("================= dialogflow request handler error ===========")
+		fmt.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -124,6 +131,8 @@ func dialogflowRequestHandler(c *gin.Context) {
 		})
 	case "MESSAGE":
 		response, respError := getResponseFromDialogflow(json.Message.Text)
+		fmt.Println("=================dialogflow response error ===========")
+		fmt.Println(respError)
 		if respError != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": respError.Error()})
 			return
@@ -149,7 +158,8 @@ func getResponseFromDialogflow(userQuery string) (string, error) {
 func detectIntentText(projectID, sessionID, text, languageCode string) (string, error) {
 	ctx := context.Background()
 
-	sessionClient, err := dialogflow.NewSessionsClient(ctx)
+	sessionClient, err := dialogflow.NewSessionsClient(ctx, option.WithCredentialsFile("/Users/bhavadharani/credentials/service_acc_key_bhava_bot.json"))
+
 	if err != nil {
 		return "", err
 	}
@@ -166,6 +176,8 @@ func detectIntentText(projectID, sessionID, text, languageCode string) (string, 
 	request := dialogflowpb.DetectIntentRequest{Session: sessionPath, QueryInput: &queryInput}
 
 	response, err := sessionClient.DetectIntent(ctx, &request)
+	fmt.Println("================= detect intent resp error ===========")
+	fmt.Println(err)
 	if err != nil {
 		return "", err
 	}
@@ -231,5 +243,6 @@ func getRouterEngine() *gin.Engine {
 
 func main() {
 	//log.Fatal(gateway.ListenAndServe(":8080", Handler()))
-	lambda.Start(Handler)
+	//lambda.Start(Handler)
+	getRouterEngine().Run()
 }
