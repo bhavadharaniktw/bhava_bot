@@ -22,6 +22,7 @@ import (
 	dialogflow "cloud.google.com/go/dialogflow/apiv2"
 	// "github.com/apex/gateway"
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -49,8 +50,8 @@ func randomStringGenerator(n int) string {
 	return string(b)
 }
 
-func getCertificateJSONFromURL() []byte {
-	resp, err := http.Get(jwksURL)
+func getCertificateJSONFromURL(URL string) []byte {
+	resp, err := http.Get(URL)
 	fmt.Println("================= certificate error ===========")
 	fmt.Println(err)
 	if err != nil {
@@ -79,7 +80,7 @@ func authorizeHangoutsClient(c *gin.Context) {
 			return nil, errors.New("expecting JWT header to have string kid")
 		}
 		data := map[string]interface{}{}
-		dec := json.NewDecoder(strings.NewReader(string(getCertificateJSONFromURL())))
+		dec := json.NewDecoder(strings.NewReader(string(getCertificateJSONFromURL(jwksURL))))
 		dec.Decode(&data)
 		jq := jsonq.NewQuery(data)
 		cert, _ := jq.String(keyID)
@@ -158,7 +159,7 @@ func getResponseFromDialogflow(userQuery string) (string, error) {
 func detectIntentText(projectID, sessionID, text, languageCode string) (string, error) {
 	ctx := context.Background()
 
-	sessionClient, err := dialogflow.NewSessionsClient(ctx, option.WithCredentialsFile("/Users/bhavadharani/credentials/service_acc_key_bhava_bot.json"))
+	sessionClient, err := dialogflow.NewSessionsClient(ctx, option.WithCredentialsJSON(getCertificateJSONFromURL("https://bhavabucket.s3.us-east-2.amazonaws.com/service_acc_key_bhava_bot.json")))
 
 	if err != nil {
 		return "", err
@@ -243,6 +244,6 @@ func getRouterEngine() *gin.Engine {
 
 func main() {
 	//log.Fatal(gateway.ListenAndServe(":8080", Handler()))
-	//lambda.Start(Handler)
-	getRouterEngine().Run()
+	lambda.Start(Handler)
+
 }
